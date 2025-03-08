@@ -2,7 +2,7 @@ import { describe } from "vitest"
 import { Result } from "../Result"
 
 describe(Result.name, () => {
-  describe('Ok', () => {
+  describe('match', () => {
     it('only calls value handler when result is OK', () => {
       // Arrange
       const valueHandler = vi.fn()
@@ -25,9 +25,7 @@ describe(Result.name, () => {
       // Assert
       expect(result).toBe(5)
     })
-  })
 
-  describe('Error', () => {
     it('only calls error handler when result is ERROR', () => {
       // Arrange
       const valueHandler = vi.fn()
