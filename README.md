@@ -1,7 +1,8 @@
-# First Session
+# Intro
 This deliberate practice is meant to teach the use of the Result class.
 The Result class is a convenient helper class for wrapping the results of operations that could fail.
 
+# Lesson 1
 To start. Look at the `Result.spec.ts file` and the `Result.ts` file.
 Implement the Result class so that the tests pass.
 
