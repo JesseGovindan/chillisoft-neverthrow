@@ -106,4 +106,56 @@ describe(Result.name, () => {
       expect(getError(result)).toBe(3)
     })
   })
+
+  describe('andThen', () => {
+    // HINT: The function signature of andThen should be:
+    // andThen<R, E2>(onValue: (value: V) => Result<R, E2>): Result<R, E | E2>
+
+    it('calls provided function when result is OK', () => {
+      // Arrange
+      const nextOperation = vi.fn()
+      const sut = Result.ok(3)
+      // Act
+      sut.andThen(nextOperation)
+      // Assert
+      expect(nextOperation).toHaveBeenCalledWith(3)
+    })
+
+    it('returns the OK value when the provided function returns an OK value', () => {
+      // Arrange
+      const sut = Result.ok(3)
+      // Act
+      const result = sut.andThen(value => Result.ok(value * 2))
+      // Assert
+      expect(getValue(result)).toBe(6)
+    })
+
+    it('returns an ERROR result when provided function returns an ERROR', () => {
+      // Arrange
+      const sut = Result.ok(3)
+      // Act
+      const result = sut.andThen(() => Result.err('Some Error'))
+      // Assert
+      expect(getError(result)).toBe('Some Error')
+    })
+
+    it('does not call the provided function when result is ERROR', () => {
+      // Arrange
+      const mappingFunction = vi.fn()
+      const sut = Result.err(3)
+      // Act
+      sut.andThen(mappingFunction)
+      // Assert
+      expect(mappingFunction).not.toHaveBeenCalled()
+    })
+
+    it('keeps the error of the Result type', () => {
+      // Arrange
+      const sut: Result<number, number> = Result.err(3)
+      // Act
+      const result = sut.andThen(value => Result.ok(value * 2))
+      // Assert
+      expect(getError(result)).toBe(3)
+    })
+  })
 })
