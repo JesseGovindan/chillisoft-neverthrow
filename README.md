@@ -30,3 +30,17 @@ Once your tests are passing, try to refactor the `exercise-2.ts` file using the 
 Use the tests to check if the code still behaves as it should.
 
 When you're done merge the branch `exercise-3` into your branch and read this file again.
+
+# Exercise 3
+Now that we know about the `match` and `map` methods, we may come across a situation where we need to map a result
+using a function that returns a Result instance.
+Handling this situation will cause us to end up with nested results (a structure like `Result<Result<T, E>, E>`).
+This makes our code complex, especially if theres more processing that needs to be done.
+Instead of manually handling these nested layers, we can use the `andThen` method to work with operations that return a Result.
+This method works very similarly to `map` but handles the inner `Result` type correctly.
+
+Lets look at the `Result.spec.ts` and the `Result.ts` files again.
+You should see some new tests that define the behaviour for the `andThen` method.
+
+Once your tests are passing, try to refactor the `exercise-3.ts` file using the `andThen` method.
+Use the tests to check if the code still behaves as it should.
