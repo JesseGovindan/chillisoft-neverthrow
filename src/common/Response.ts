@@ -18,3 +18,22 @@ export const BadRequest = (details: Omit<Response, 'statusCode'> = {}): Response
   ...details,
 })
 
+export const PaymentRequired = (details: Omit<Response, 'statusCode'> = {}): Response => ({
+  statusCode: 402,
+  ...details,
+})
+
+export const NotFound = (details: Omit<Response, 'statusCode'> = {}): Response => ({
+  statusCode: 404,
+  ...details,
+})
+
+export const InternalServerError = (details: Omit<Response, 'statusCode'> = {}): Response => ({
+  statusCode: 500,
+  ...details,
+})
+
+export const ServiceUnavailable = (details: Omit<Response, 'statusCode'> = {}): Response => ({
+  statusCode: 503,
+  ...details,
+})
