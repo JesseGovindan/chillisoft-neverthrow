@@ -44,3 +44,5 @@ You should see some new tests that define the behaviour for the `andThen` method
 
 Once your tests are passing, try to refactor the `exercise-3.ts` file using the `andThen` method.
 Use the tests to check if the code still behaves as it should.
+
+When you're done merge the branch `exercise-4` into your branch and read this file again.
