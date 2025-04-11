@@ -1,5 +1,5 @@
 import { sendOrderNotification } from "../common/NotificationApi"
-import { createOrder, findProductById, updateProductStock } from "../common/OrderDb"
+import { createOrder, findProductById } from "../common/OrderDb"
 import { processPayment } from "../common/PaymentApi"
 import { AsyncRequestHandler } from "../common/RequestHandler"
 import { BadRequest, Created, InternalServerError, NotFound, PaymentRequired, ServiceUnavailable } from "../common/Response"
