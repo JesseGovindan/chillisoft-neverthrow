@@ -1,6 +1,7 @@
 import { RequestHandler } from "../common/RequestHandler";
-import { BadRequest, Ok } from "../common/Response";
+import { BadRequest, Ok, Response } from "../common/Response";
 import { fetchWeatherCondition, WeatherApiError, WeatherCondition } from "../common/WeatherApi";
+import { Result } from "../Result";
 
 // In this exercise we don't have any Result usage to start with.
 // Use what you've learnt in other exercises and your understanding of andThen to refactor this code.
@@ -8,53 +9,68 @@ import { fetchWeatherCondition, WeatherApiError, WeatherCondition } from "../com
 //
 // Hint. If you find you require variables used in one operation further down the chain,
 // that might mean you are missing an abstraction or a function
-export const getWeatherSummary: RequestHandler = (request) => {
-  try {
-    const {city, date} = validateRequest(request.query)
 
-    const weatherRequest = createWeatherRequest(city, date)
-
-    try {
-      const weather = fetchWeatherCondition(weatherRequest)
-      return Ok({
-        body: {
-          summary: formatSummary(weather, date, city)
-        }
-      })
-    } catch (error) {
-      return createErrorResponse(error as WeatherApiError, city)
-    }
-  } catch (error) {
-    return BadRequest({
-      body: {
-        error,
-      }
-    })
-  }
+type LocationTimestamp = {
+  city: string,
+  date: Date
 }
 
-function validateRequest(body: any) {
+export const getWeatherSummary: RequestHandler = (request) => {
+  return validateRequest(request.query)
+    .andThen(tryCreateWeatherSummary)
+    .match(
+      summary => {
+        return Ok({
+          body: {
+            summary,
+          }
+        })
+      },
+      error => error
+    );
+}
+
+function validateRequest(body: any): Result<LocationTimestamp, Response> {
   const { city, time: timeString } = body
+  
   if (!city) {
-    throw "Request body did not contain a 'city' field"
+    return CreateValidationError("Request body did not contain a 'city' field");
   }
 
   if (!timeString) {
-    throw "Request body did not contain a 'time' field"
+    return CreateValidationError("Request body did not contain a 'time' field");
   }
 
   if (typeof city !== 'string') {
-    throw "Request body did not contain a valid 'city' field"
+    return CreateValidationError("Request body did not contain a valid 'city' field");
   }
 
   const time = parseInt(timeString)
   if (isNaN(time)) {
-    throw "Request body did not contain a valid 'time' field"
+    return CreateValidationError("Request body did not contain a valid 'time' field");
   }
 
-  return {
+  return Result.ok({
     city,
     date: new Date(time),
+  });
+}
+
+function CreateValidationError(error: string): Result<never, Response> {
+  return Result.err(BadRequest({
+    body: {
+      error,
+    }
+  }))
+}
+
+function tryCreateWeatherSummary({ city, date }: LocationTimestamp): Result<string, Response> {
+  const weatherRequest = createWeatherRequest(city, date);
+  try {
+    const weatherCondition = fetchWeatherCondition(weatherRequest);
+    return Result.ok(formatSummary(weatherCondition, date, city));
+  } catch (error) {
+    return Result.err(createErrorResponse(error as WeatherApiError, city));
   }
 }
 
@@ -103,7 +119,7 @@ function getDateSuffix(date: number) {
   }
 }
 
-function createErrorResponse(error: WeatherApiError, city: string) {
+function createErrorResponse(error: WeatherApiError, city: string): Response {
   if (error === 'invalidLocation') {
     return BadRequest({
       body: {
