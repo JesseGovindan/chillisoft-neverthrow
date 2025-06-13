@@ -1,5 +1,5 @@
-import { describe } from "vitest"
-import { Result } from "../Result"
+import { describe } from 'vitest'
+import { Result } from '../Result'
 
 describe(Result.name, () => {
   describe('match', () => {
@@ -36,6 +36,17 @@ describe(Result.name, () => {
       // Assert
       expect(valueHandler).not.toHaveBeenCalled()
       expect(errorHandler).toHaveBeenCalledWith(3)
+    })
+
+    it('returns the value from the error handler', () => {
+      // Arrange
+      const valueHandler = () => 5
+      const errorHandler = () => 6
+      const sut = Result.err(3)
+      // Act
+      const result = sut.match(valueHandler, errorHandler)
+      // Assert
+      expect(result).toBe(6)
     })
 
     it('returns the value from the error handler', () => {

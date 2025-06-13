@@ -11,6 +11,11 @@ export class Result<V, E> {
     return new Result<V, E>(false, undefined, error)
   }
 
-  match<R>(handleValue: (value: V) => R, handleError: (error: E) => R): R {
+  match<Result>(handleValue: (value: V) => Result, handleError: (error: E) => Result)  {
+    if(this.isOk) {
+      return handleValue(this.value as V)
+    } else {
+      return handleError(this.error as E)
+    }
   }
 }

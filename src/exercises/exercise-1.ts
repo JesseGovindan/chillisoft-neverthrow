@@ -1,6 +1,7 @@
 import { RequestHandler } from "../common/RequestHandler";
-import { BadRequest, Created } from "../common/Response";
+import { BadRequest, Created} from "../common/Response";
 import { createUser } from "../common/UserDb";
+import { Result } from "../Result"
 
 // Refactor this function so that it returns a better error responses.
 // i.e 'Unable to create user. Invalid email address'
@@ -9,45 +10,35 @@ import { createUser } from "../common/UserDb";
 // hint: You refactored code should not need a try-catch or a check if the userTemplate is defined :)
 // hint: Enable the "extra validation" tests in the exercise-1.spec.ts to verify your work
 export const addUser: RequestHandler = (request) => {
-  try {
-    const userTemplate = validateUserTemplate(request.body)
-
-    if (!userTemplate) {
-      return BadRequest({ body: 'Unable to create new user. Invalid user details provided.' })
-    }
-
-    createUser(userTemplate)
-
-    return Created()
-  } catch {
-    return BadRequest({ body: 'Unable to create new user. Body of request is not an object.' })
-  }
+  return validateUserTemplate(request.body).match(
+    (userTemplate) => {
+      createUser(userTemplate);
+      return Created();
+    },
+    (errorMessage) => BadRequest({ body: errorMessage })
+  )
 }
 
-function validateUserTemplate(possibleUser: any) {
+function validateUserTemplate(possibleUser: any): Result<{email: string, name: string, password: string}, string> {
   if (typeof possibleUser !== 'object') {
-    throw new Error('Invalid body')
+    return Result.err('Unable to create new user. Body of request is not an object.')
   }
 
   const { email, name, password } = possibleUser
 
   if (!isAValidString(email)) {
-    return undefined
+    return Result.err('Unable to create new user. No email provided.')
   }
 
   if (!isAValidString(name)) {
-    return undefined
+    return Result.err('Unable to create new user. No name provided.')
   }
 
   if (!isAValidString(password)) {
-    return undefined
+    return Result.err('Unable to create new user. No password provided.')
   }
 
-  return {
-    email,
-    name,
-    password,
-  }
+  return Result.ok({ email, name, password })
 }
 
 function isAValidString(value: any): value is string {
