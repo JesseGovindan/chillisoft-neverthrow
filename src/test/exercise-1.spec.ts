@@ -36,7 +36,7 @@ describe('addUser', () => {
   })
 
   // Remove this skip when working on exercise-1
-  describe.skip('extra validation', () => {
+  describe('extra validation', () => {
     it('returns status 400 when request body is missing email', () => {
       // Arrange
       const user: any = createValidUserWithout('email')
