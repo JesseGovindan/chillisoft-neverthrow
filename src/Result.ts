@@ -18,4 +18,12 @@ export class Result<V, E> {
       return handleError(this.error!)
     }
   }
+
+  map<R>(onValue: (value: V) => R): Result<R, E> {
+    if (this.isOk) {
+      return Result.ok<R>(onValue(this.value!))
+    } else {
+      return Result.err<E>(this.error!);
+    }
+  }
 }
