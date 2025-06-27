@@ -1,58 +1,80 @@
+import { err, errAsync, fromPromise, ok, okAsync, Result, ResultAsync } from "neverthrow"
 import { sendOrderNotification } from "../common/NotificationApi"
 import { createOrder, findProductById } from "../common/OrderDb"
 import { processPayment } from "../common/PaymentApi"
 import { AsyncRequestHandler } from "../common/RequestHandler"
 import { BadRequest, Created, InternalServerError, NotFound, PaymentRequired, ServiceUnavailable } from "../common/Response"
-import { findUserById } from "../common/UserDb"
+import { findUserById, User } from "../common/UserDb"
+import { Response } from "../common/Response"
+import { Request } from "../common/Request"
+
+function validateRequestBody(req: Request): Result<any, Response> {
+  if (!req.body.userId || !req.body.items || !Array.isArray(req.body.items) || req.body.items.length === 0) {
+    return err(BadRequest({ body: { error: 'User ID and at least one order item are required.' } }))
+  }
+  return ok(req);
+}
+
+function validateAndParseOrderItems(body: any): Result<any[], Response> {
+  let orderItems: Result<any, Response>[] = body.items.map(
+    (item: any) => { validateOrderItem(item) });
+
+  return Result.combine(orderItems);
+}
+
+function validateOrderItem(item: any): Result<any, Response> {
+  if (!item.productId || !item.quantity || item.quantity <= 0) {
+    return err(BadRequest({ body: { error: 'Invalid order items provided.' } }));
+  }
+  return ok({
+    productId: item.productId,
+    quantity: item.quantity,
+  });
+}
+
+function getUserDetails(body: any): ResultAsync<User, Response> {
+  return ResultAsync.fromPromise(findUserById(body.userId), () => {
+    return InternalServerError({ body: { error: 'Database error retrieving user.' } });
+
+  }).andThen(user => {
+    if (!user) {
+      return err(NotFound({ body: { error: 'User not found.' } }));
+    }
+    return ok(user);
+  });
+}
+
+function checkInventory(item: any): ResultAsync<any, Response> {
+  return ResultAsync.fromPromise(findProductById(item.productId), () => {
+    return InternalServerError({ body: { error: `Database error checking product ${item.productId}.` } })
+
+  }).andThen(product => {
+    if (!product) {
+      return err(NotFound({ body: { error: `Product ${item.productId} not found.` } }));
+    }
+    return ok(product);
+
+  }).andThen(product => {
+    if (product.stock < item.quantity) {
+      return err(BadRequest({ body: { error: `Insufficient stock for product ${item.productId}.` } }));
+    }
+    return ok(product);
+  });
+}
 
 export const processOrder: AsyncRequestHandler = async (req) => {
   try {
     // Validate request body for userId and order items
-    if (!req.body.userId || !req.body.items || !Array.isArray(req.body.items) || req.body.items.length === 0) {
-      return BadRequest({ body: { error: 'User ID and at least one order item are required.' } })
-    }
-
-    // Validate and parse order items
-    let orderItems = []
-    try {
-      orderItems = req.body.items.map((item: any) => {
-        if (!item.productId || !item.quantity || item.quantity <= 0) {
-          throw new Error('Invalid order item')
-        }
-        return {
-          productId: item.productId,
-          quantity: item.quantity,
-        }
-      })
-    } catch (itemError) {
-      return BadRequest({ body: { error: 'Invalid order items provided.' } })
-    }
+    let orderItems = validateRequestBody(req)
+      .andThen(validateAndParseOrderItems)
+      .map(checkInventory)
+      //andThen calculate total
+      //andThen process payments
+      //andThen create order record
+      //andThen send email
 
     // Retrieve user details from the database
-    let user
-    try {
-      user = await findUserById(req.body.userId)
-      if (!user) {
-        return NotFound({ body: { error: 'User not found.' } })
-      }
-    } catch (dbError) {
-      return InternalServerError({ body: { error: 'Database error retrieving user.' } })
-    }
-
-    // Check inventory for each order item
-    for (const item of orderItems) {
-      try {
-        const product = await findProductById(item.productId)
-        if (!product) {
-          return NotFound({ body: { error: `Product ${item.productId} not found.` } })
-        }
-        if (product.stock < item.quantity) {
-          return BadRequest({ body: { error: `Insufficient stock for product ${item.productId}.` } })
-        }
-      } catch (dbError) {
-        return InternalServerError({ body: { error: `Database error checking product ${item.productId}.` } })
-      }
-    }
+    let user = getUserDetails(req.body);
 
     // Calculate the total order amount
     let orderTotal = 0
