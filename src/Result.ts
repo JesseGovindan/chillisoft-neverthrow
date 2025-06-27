@@ -7,14 +7,22 @@ export class Result<V, E> {
   ) {}
 
   static ok<V>(value: V) {
-    return new Result<V, never>(true, value, undefined)
+    return new Result<V, never>(true, value, undefined);
   }
 
   static err<E>(error: E) {
-    return new Result<never, E>(false, undefined, error)
+    return new Result<never, E>(false, undefined, error);
   }
 
   match<R>(handleValue: (value: V) => R, handleError: (error: E) => R): R {
     return this.isOk ? handleValue(this.value!) : handleError(this.error!);
+  }
+
+  map<R>(onValue: (value: V) => R): Result<R, E> {
+    return new Result<R, E>(
+      this.isOk,
+      this.isOk ? onValue(this.value!) : undefined,
+      this.error
+    );
   }
 }
