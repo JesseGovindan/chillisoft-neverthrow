@@ -9,24 +9,6 @@ import { Result } from "../Result";
 // from the http response generation.
 //
 // hint: Your final match call should be no longer than 5 - 6 lines. It is even possible to get it down to 1 - 2 lines!
-export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
-  return validateDiscountCode(request.body)
-  .match(
-    discount => {
-      const userId = request.session.userId
-
-      const userCart = getUserCart(request.session.userId)
-      const discountedCart = userCart.map(item => ({
-        ...item,
-        discount: discount,
-      }))
-
-      updateUserCart(userId, discountedCart)
-      return Ok({ body: discountedCart })
-    },
-    createErrorResponse,
-  )
-}
 
 function validateDiscountCode(discountCode: any): Result<number, string> {
   if (typeof discountCode !== 'string') {
@@ -41,6 +23,27 @@ function validateDiscountCode(discountCode: any): Result<number, string> {
 
   return Result.ok(discount)
 }
+
+export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
+  return validateDiscountCode(request.body)
+    .map(discount => {
+      const userId = request.session.userId;
+      const userCart = getUserCart(userId);
+
+      const discountedCart = userCart.map(item => ({
+        ...item,
+        discount,
+      }));
+
+      updateUserCart(userId, discountedCart);
+      return discountedCart;
+    })
+    .match(
+      discountedCart => Ok({ body: discountedCart }),
+      createErrorResponse
+    );
+};
+
 
 function createErrorResponse(validationError: string) {
   return BadRequest({ body: `Unable to apply discount code. ${validationError}.` })
