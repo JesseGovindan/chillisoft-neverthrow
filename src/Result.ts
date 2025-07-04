@@ -7,18 +7,18 @@ export class Result<V, E> {
   ) {}
 
   static ok<V, E>(value: V): Result<V, E> {
-    return new Result<V, E>(true, value, undefined);
+    return new Result<V, E>(true, value, undefined)
   }
 
   static err<V, E>(error: E): Result<V, E> {
-    return new Result<V, E>(false, undefined, error);
+    return new Result<V, E>(false, undefined, error)
   }
 
   match<R>(handleValue: (value: V) => R, handleError: (error: E) => R): R {
     if (this.isOk) {
-      return handleValue(this.value as V);
+      return handleValue(this.value as V)
     } else {
-      return handleError(this.error as E);
+      return handleError(this.error as E)
     }
   }
 }
