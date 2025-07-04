@@ -1,7 +1,7 @@
 import { err, errAsync, fromPromise, ok, okAsync, Result, ResultAsync } from "neverthrow"
 import { sendOrderNotification } from "../common/NotificationApi"
 import { createOrder, findProductById } from "../common/OrderDb"
-import { processPayment } from "../common/PaymentApi"
+import { PaymentId, processPayment } from "../common/PaymentApi"
 import { AsyncRequestHandler } from "../common/RequestHandler"
 import { BadRequest, Created, InternalServerError, NotFound, PaymentRequired, ServiceUnavailable } from "../common/Response"
 import { findUserById, User } from "../common/UserDb"
@@ -33,10 +33,10 @@ function validateOrderItem(item: any): Result<any, Response> {
 }
 
 function getUserDetails(body: any): ResultAsync<User, Response> {
-  return ResultAsync.fromPromise(findUserById(body.userId), () => {
-    return InternalServerError({ body: { error: 'Database error retrieving user.' } });
-
-  }).andThen(user => {
+  return ResultAsync.fromPromise(
+    findUserById(body.userId), () =>
+    InternalServerError({ body: { error: 'Database error retrieving user.' } })
+  ).andThen(user => {
     if (!user) {
       return err(NotFound({ body: { error: 'User not found.' } }));
     }
@@ -45,10 +45,10 @@ function getUserDetails(body: any): ResultAsync<User, Response> {
 }
 
 function checkInventory(item: any): ResultAsync<any, Response> {
-  return ResultAsync.fromPromise(findProductById(item.productId), () => {
-    return InternalServerError({ body: { error: `Database error checking product ${item.productId}.` } })
-
-  }).andThen(product => {
+  return ResultAsync.fromPromise(
+    findProductById(item.productId),
+    () => InternalServerError({ body: { error: `Database error checking product ${item.productId}.` } })
+  ).andThen(product => {
     if (!product) {
       return err(NotFound({ body: { error: `Product ${item.productId} not found.` } }));
     }
@@ -62,45 +62,69 @@ function checkInventory(item: any): ResultAsync<any, Response> {
   });
 }
 
+function calculateTotalOrderAmount(orderItems: any[]): ResultAsync<number, Response> {
+  let priceResults = orderItems.map(item => {
+    return ResultAsync.fromPromise(
+      findProductById(item.productId),
+      () => InternalServerError({ body: { error: 'Error calculating order total.' } })
+    ).andThen(product => {
+      if (!product) {
+        return err(InternalServerError({ body: { error: 'Error calculating order total.' } }));
+      }
+      let total = product.price * item.quantity;
+      return ok(total);
+    });
+  });
+
+  return ResultAsync.combine(priceResults)
+    .map(prices => prices.reduce((orderTotal, price) => orderTotal + price, 0));
+}
+
+function processPaymentViaGateway(orderTotal: number, user: User, body: any): ResultAsync<PaymentId, Response> {
+  return ResultAsync.fromPromise(
+    processPayment({
+      userId: user.id,
+      amount: orderTotal,
+      paymentMethod: body.paymentMethod
+    }),
+    () => ServiceUnavailable({ body: { error: 'Payment service unavailable.' } })
+  ).andThen(paymentId => {
+    if (!paymentId) {
+      return err(PaymentRequired({ body: { error: 'Payment failed.' } }));
+    }
+    return ok(paymentId);
+  })
+}
+
 export const processOrder: AsyncRequestHandler = async (req) => {
   try {
     // Validate request body for userId and order items
-    let orderItems = validateRequestBody(req)
+    let bodyResult = validateRequestBody(req);
+
+    let orderTotalResult = bodyResult
       .andThen(validateAndParseOrderItems)
-      .map(checkInventory)
-      //andThen calculate total
-      //andThen process payments
-      //andThen create order record
-      //andThen send email
+      .map(items => items.map(checkInventory))
+      // .asyncAndThen(calculateTotalOrderAmount)
+
+    let orderItems = bodyResult
+      .andThen(validateAndParseOrderItems)
+      // .async(checkInventory)
+    //andThen create order record
+    //andThen send email
 
     // Retrieve user details from the database
-    let user = getUserDetails(req.body);
+    let userResult = bodyResult.asyncAndThen(getUserDetails);
 
-    // Calculate the total order amount
-    let orderTotal = 0
-    try {
-      for (const item of orderItems) {
-        const product = await findProductById(item.productId)
-        orderTotal += product!.price * item.quantity
-      }
-    } catch (calcError) {
-      return InternalServerError({ body: { error: 'Error calculating order total.' } })
-    }
+    // Process payments
+    let paymentIdResult = bodyResult
+      .asyncAndThen(body => userResult
+        .andThen(user => orderTotalResult
+          .andThen(orderTotal => processPaymentViaGateway(orderTotal, user, body))));
 
-    // Process payment via a third-party payment gateway
-    let paymentId
-    try {
-      paymentId = await processPayment({
-        userId: user.id,
-        amount: orderTotal,
-        paymentMethod: req.body.paymentMethod
-      })
-      if (!paymentId) {
-        return PaymentRequired({ body: { error: 'Payment failed.' } })
-      }
-    } catch (paymentError) {
-      return ServiceUnavailable({ body: { error: 'Payment service unavailable.' } })
-    }
+
+    ResultAsync
+      .combine([paymentIdResult, userResult])
+      .andThen(([total, user]) => processPayment(total, user));
 
     // Create an order record in the database
     let orderRecord
