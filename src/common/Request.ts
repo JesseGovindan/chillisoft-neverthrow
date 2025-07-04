@@ -1,5 +1,6 @@
 export type Request = {
-  body: any
+  body?: any
+  query?: Record<string, string>
 }
 
 export type AuthenticatedRequest = {
