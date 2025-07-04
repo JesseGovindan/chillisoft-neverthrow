@@ -21,4 +21,13 @@ export class Result<V, E> {
       return handleError(this.error as E)
     }
   }
+
+  map<R>(onValue: (value: V) => R): Result<R, E> {
+    if (this.isOk) {
+      const newValue = onValue(this.value as V)
+      return Result.ok<R, E>(newValue)
+    } else {
+      return Result.err<R, E>(this.error as E)
+    }
+  }
 }

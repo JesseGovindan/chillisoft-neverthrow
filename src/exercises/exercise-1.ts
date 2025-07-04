@@ -12,11 +12,11 @@ import { Result } from "../Result"
 export const addUser: RequestHandler = (request) => {
   return validateUserTemplate(request.body).match(
     (userTemplate) => {
-      createUser(userTemplate);
-      return Created();
+      createUser(userTemplate)
+      return Created()
     },
     (errorMessage) => {
-      return BadRequest({ body: `Unable to create new user. ${errorMessage}` });
+      return BadRequest({ body: `Unable to create new user. ${errorMessage}` })
     }
   )
 }
