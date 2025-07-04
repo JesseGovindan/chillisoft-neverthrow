@@ -19,10 +19,13 @@ export class Result<V, E> {
   }
 
   map<R>(onValue: (value: V) => R): Result<R, E> {
-    return new Result<R, E>(
-      this.isOk,
-      this.isOk ? onValue(this.value!) : undefined,
-      this.error
+    return this.match<Result<R, E>>(
+      (value) => Result.ok(onValue(value)),
+      Result.err
     );
+  }
+
+  andThen<R, E2>(onValue: (value: V) => Result<R, E2>): Result<R, E | E2> {
+    return this.match<Result<R, E | E2>>(onValue, Result.err);
   }
 }
