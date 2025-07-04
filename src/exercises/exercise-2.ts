@@ -1,4 +1,10 @@
-import { getUserCart, getDiscountForCode, updateUserCart } from "../common/CartDb";
+import {
+  Cart,
+  getDiscountForCode,
+  getUserCart,
+  updateUserCart,
+} from "../common/CartDb";
+import { AuthenticatedRequest } from "../common/Request";
 import { AuthenticatedRequestHandler } from "../common/RequestHandler";
 import { BadRequest, Ok } from "../common/Response";
 import { Result } from "../Result";
@@ -11,37 +17,38 @@ import { Result } from "../Result";
 // hint: Your final match call should be no longer than 5 - 6 lines. It is even possible to get it down to 1 - 2 lines!
 export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
   return validateDiscountCode(request.body)
-  .match(
-    discount => {
-      const userId = request.session.userId
+    .map((discount) => applyDiscountToCart(discount, request.session.userId))
+    .match(createOkResponse, createErrorResponse);
+};
 
-      const userCart = getUserCart(request.session.userId)
-      const discountedCart = userCart.map(item => ({
-        ...item,
-        discount: discount,
-      }))
-
-      updateUserCart(userId, discountedCart)
-      return Ok({ body: discountedCart })
-    },
-    createErrorResponse,
-  )
+function applyDiscountToCart(discount: number, userId: string) {
+  const cart = getUserCart(userId);
+  cart.map((item) => (item.discount = discount));
+  updateUserCart(userId, cart);
+  return cart;
 }
 
 function validateDiscountCode(discountCode: any): Result<number, string> {
-  if (typeof discountCode !== 'string') {
-    return Result.err('Invalid discount code provided')
+  if (typeof discountCode !== "string") {
+    return Result.err("Invalid discount code provided");
   }
 
-  const discount = getDiscountForCode(discountCode)
+  const discount = getDiscountForCode(discountCode);
 
   if (!discount) {
-    return Result.err('No discount found for the given discount code')
+    return Result.err("No discount found for the given discount code");
   }
 
-  return Result.ok(discount)
+  return Result.ok(discount);
 }
 
 function createErrorResponse(validationError: string) {
-  return BadRequest({ body: `Unable to apply discount code. ${validationError}.` })
+  return BadRequest({
+    body: `Unable to apply discount code. ${validationError}.`,
+  });
+}
+function createOkResponse(cart: Cart) {
+  return Ok({
+    body: cart,
+  });
 }
