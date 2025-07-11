@@ -1,4 +1,4 @@
-import { err, ok, Result, ResultAsync } from "neverthrow"
+import { err, errAsync, ok, okAsync, Result, ResultAsync } from "neverthrow"
 import { sendOrderNotification } from "../common/NotificationApi"
 import { createOrder, findProductById, OrderItem } from "../common/OrderDb"
 import { PaymentId, processPayment } from "../common/PaymentApi"
@@ -18,15 +18,40 @@ export type OrderRecord = {
   id: string;
 }
 
+// export const processOrder: AsyncRequestHandler = async (req) => {
+//   let orderRecordResult = validateRequestBody(req)
+//     .asyncAndThen(body => validateAndParseOrderItems(body)
+//       .asyncAndThen(items => checkInventory(items)
+//         .andThen(orderItems => calculateTotalOrderAmount(orderItems)
+//           .andThen(orderTotal => getUserDetails(body)
+//             .andThen(user => processPaymentViaGateway(orderTotal, user, body)
+//               .andThen(paymentId => createOrderRecord(user, orderItems, orderTotal, paymentId)
+//                 .andTee(orderRecord => sendEmail(user, orderRecord, orderTotal))))))));
+
+//   return orderRecordResult.match(
+//     (orderRecord) => Created(({ body: { message: 'Order processed successfully.', order: orderRecord } })),
+//     (error) => error
+//   );
+// }
+
 export const processOrder: AsyncRequestHandler = async (req) => {
-  let orderRecordResult = validateRequestBody(req)
-    .asyncAndThen(body => validateAndParseOrderItems(body)
-      .asyncAndThen(items => checkInventory(items)
-        .andThen(orderItems => calculateTotalOrderAmount(orderItems)
-          .andThen(orderTotal => getUserDetails(body)
-            .andThen(user => processPaymentViaGateway(orderTotal, user, body)
-              .andThen(paymentId => createOrderRecord(user, orderItems, orderTotal, paymentId)
-                .andTee(orderRecord => sendEmail(user, orderRecord, orderTotal))))))));
+  let body = validateRequestBody(req);
+  let user = body.andThen(getUserDetails);
+
+  let items = body
+    .andThen(validateAndParseOrderItems)
+    .andThen(checkInventory);
+
+  let orderTotal = items.andThen(calculateTotalOrderAmount);
+
+  let paymentId = ResultAsync.combine([orderTotal, user, body])
+    .andThen(result => processPaymentViaGateway(...result));
+
+  let orderRecordResult = ResultAsync.combine([user, items, orderTotal, paymentId])
+    .andThen(result => createOrderRecord(...result));
+
+  ResultAsync.combine([user, orderRecordResult, orderTotal])
+    .andThen(result => sendEmail(...result));
 
   return orderRecordResult.match(
     (orderRecord) => Created(({ body: { message: 'Order processed successfully.', order: orderRecord } })),
@@ -34,25 +59,25 @@ export const processOrder: AsyncRequestHandler = async (req) => {
   );
 }
 
-function validateRequestBody(req: Request): Result<OrderRequestBody, Response> {
+function validateRequestBody(req: Request): ResultAsync<OrderRequestBody, Response> {
   return req.body.userId && req.body.items && Array.isArray(req.body.items) && req.body.items.length !== 0
-    ? ok(req.body)
-    : err(BadRequest({ body: { error: 'User ID and at least one order item are required.' } }));
+    ? okAsync(req.body)
+    : errAsync(BadRequest({ body: { error: 'User ID and at least one order item are required.' } }));
 }
 
-function validateAndParseOrderItems(body: OrderRequestBody): Result<OrderItem[], Response> {
+function validateAndParseOrderItems(body: OrderRequestBody): ResultAsync<OrderItem[], Response> {
   let orderItems = body.items.map(
     item => validateOrderItem(item));
-  return Result.combine(orderItems);
+  return ResultAsync.combine(orderItems);
 }
 
-function validateOrderItem(item: OrderItem): Result<OrderItem, Response> {
+function validateOrderItem(item: OrderItem): ResultAsync<OrderItem, Response> {
   return item.productId && item.quantity && item.quantity > 0
-    ? ok({
+    ? okAsync({
       productId: item.productId,
       quantity: item.quantity
     })
-    : err(BadRequest({ body: { error: 'Invalid order items provided.' } }));
+    : errAsync(BadRequest({ body: { error: 'Invalid order items provided.' } }));
 }
 
 function getUserDetails(body: OrderRequestBody): ResultAsync<User, Response> {
