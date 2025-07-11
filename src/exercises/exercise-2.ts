@@ -1,4 +1,5 @@
 import { getUserCart, getDiscountForCode, updateUserCart } from "../common/CartDb";
+import { AuthenticatedRequest } from "../common/Request";
 import { AuthenticatedRequestHandler } from "../common/RequestHandler";
 import { BadRequest, Ok } from "../common/Response";
 import { Result } from "../Result";
@@ -10,22 +11,32 @@ import { Result } from "../Result";
 //
 // hint: Your final match call should be no longer than 5 - 6 lines. It is even possible to get it down to 1 - 2 lines!
 export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
+
+validateDiscountCode(request.body).map((x) =>{
+  
+})
+
   return validateDiscountCode(request.body)
   .match(
     discount => {
       const userId = request.session.userId
 
-      const userCart = getUserCart(request.session.userId)
-      const discountedCart = userCart.map(item => ({
-        ...item,
-        discount: discount,
-      }))
+      const discountedCart = mapDiscountedCart(request, discount);
 
       updateUserCart(userId, discountedCart)
       return Ok({ body: discountedCart })
     },
     createErrorResponse,
   )
+}
+
+function mapDiscountedCart(request: AuthenticatedRequest, discount: number) {
+  const userCart = getUserCart(request.session.userId);
+  const discountedCart = userCart.map(item => ({
+    ...item,
+    discount: discount,
+  }));
+  return discountedCart;
 }
 
 function validateDiscountCode(discountCode: any): Result<number, string> {
