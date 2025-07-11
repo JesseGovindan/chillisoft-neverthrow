@@ -16,12 +16,7 @@ export const addUser: RequestHandler = (request) => {
       return Created();
     },
     (error) => {
-      const errorMessage =
-        request.body === ""
-          ? "Unable to create new user. Body of request is not an object."
-          : error === "Invalid string" ?  "Unable to create new user. Invalid user details provided.": error;
-
-      return BadRequest({ body: errorMessage });
+      return BadRequest({ body: error });
     }
   );
 };
@@ -30,8 +25,9 @@ const validateUserTemplate = (
   possibleUser: any
 ): Result<{ name: string; email: string; password: string }, string> => {
   if (typeof possibleUser !== "object") {
-    return Result.err("Invalid body");
+    return Result.err("Unable to create new user. Body of request is not an object.");
   }
+
 
   const { email, name, password } = possibleUser;
 
