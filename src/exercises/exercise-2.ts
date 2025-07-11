@@ -11,8 +11,7 @@ import { Result } from "../Result";
 // hint: Your final match call should be no longer than 5 - 6 lines. It is even possible to get it down to 1 - 2 lines!
 export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
   return validateDiscountCode(request.body)
-  .match(
-    discount => {
+  .map(discount => {
       const userId = request.session.userId
 
       const userCart = getUserCart(request.session.userId)
@@ -22,8 +21,10 @@ export const applyDiscountCode: AuthenticatedRequestHandler = (request) => {
       }))
 
       updateUserCart(userId, discountedCart)
-      return Ok({ body: discountedCart })
-    },
+      return discountedCart
+  })
+  .match(
+    (discountedCart) => Ok({ body: discountedCart }),
     createErrorResponse,
   )
 }
