@@ -12,10 +12,14 @@ export class Result<V, E> {
   }
 
   match<Result>(handleValue: (value: V) => Result, handleError: (error: E) => Result)  {
-    if(this.isOk) {
-      return handleValue(this.value as V)
-    } else {
-      return handleError(this.error as E)
-    }
+    return this.isOk ?
+      handleValue(this.value as V) :
+      handleError(this.error as E)
+  }
+
+  map<R>(onValue: (value: V) => R): Result<R, E> {
+    return this.isOk ?
+      new Result<R, E>(this.isOk, onValue(this.value!), undefined) :
+      new Result<R, E>(false, undefined, this.error)
   }
 }

@@ -76,9 +76,6 @@ describe(Result.name, () => {
   }
 
   describe('map', () => {
-    // HINT: The function signature of map should be:
-    // map<R>(onValue: (value: V) => R): Result<R, E>
-
     it('calls provided function when result is OK', () => {
       // Arrange
       const mappingFunction = vi.fn()
