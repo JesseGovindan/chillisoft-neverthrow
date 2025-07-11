@@ -46,3 +46,15 @@ Once your tests are passing, try to refactor the `exercise-3.ts` file using the 
 Use the tests to check if the code still behaves as it should.
 
 When you're done merge the branch `exercise-4` into your branch and read this file again.
+
+# Exercise 4
+Great job on getting to stage. You've been able to implement a usuable Result type. In doing so you now understand how
+the Result pattern works and how one may implement it. In this exercise we will be dropping our own implementation of Result
+for the battle tested and feature rich library `neverthrow`.
+This library provides its own implementation of the Result type as well as a host of other useful utilities. 
+
+For this exercise, begin by first running `npm i` to get `neverthrow` installed.
+Then look at `exercise-4.ts` and `exercise-4.spec.ts`.
+The goal is to use your understanding of the Result type pattern to refactor and simplify the code in `exercise-4.ts`
+
+Refer to the `neverthrow` github page `https://github.com/supermacro/neverthrow` for documentation
