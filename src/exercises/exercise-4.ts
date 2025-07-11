@@ -1,12 +1,22 @@
 import { err, ok, Result, ResultAsync } from "neverthrow"
 import { sendOrderNotification } from "../common/NotificationApi"
-import { createOrder, findProductById } from "../common/OrderDb"
+import { createOrder, findProductById, OrderItem } from "../common/OrderDb"
 import { PaymentId, processPayment } from "../common/PaymentApi"
 import { AsyncRequestHandler } from "../common/RequestHandler"
 import { BadRequest, Created, InternalServerError, NotFound, PaymentRequired, ServiceUnavailable } from "../common/Response"
 import { findUserById, User } from "../common/UserDb"
 import { Response } from "../common/Response"
 import { Request } from "../common/Request"
+
+export type OrderRequestBody = {
+  userId: string,
+  items: OrderItem[],
+  paymentMethod: string,
+}
+
+export type OrderRecord = {
+  id: string;
+}
 
 export const processOrder: AsyncRequestHandler = async (req) => {
   let orderRecordResult = validateRequestBody(req)
@@ -24,19 +34,19 @@ export const processOrder: AsyncRequestHandler = async (req) => {
   );
 }
 
-function validateRequestBody(req: Request): Result<any, Response> {
+function validateRequestBody(req: Request): Result<OrderRequestBody, Response> {
   return req.body.userId && req.body.items && Array.isArray(req.body.items) && req.body.items.length !== 0
     ? ok(req.body)
     : err(BadRequest({ body: { error: 'User ID and at least one order item are required.' } }));
 }
 
-function validateAndParseOrderItems(body: any): Result<any[], Response> {
-  let orderItems: Result<any, Response>[] = body.items.map(
-    (item: any) => validateOrderItem(item));
+function validateAndParseOrderItems(body: OrderRequestBody): Result<OrderItem[], Response> {
+  let orderItems = body.items.map(
+    item => validateOrderItem(item));
   return Result.combine(orderItems);
 }
 
-function validateOrderItem(item: any): Result<any, Response> {
+function validateOrderItem(item: OrderItem): Result<OrderItem, Response> {
   return item.productId && item.quantity && item.quantity > 0
     ? ok({
       productId: item.productId,
@@ -45,7 +55,7 @@ function validateOrderItem(item: any): Result<any, Response> {
     : err(BadRequest({ body: { error: 'Invalid order items provided.' } }));
 }
 
-function getUserDetails(body: any): ResultAsync<User, Response> {
+function getUserDetails(body: OrderRequestBody): ResultAsync<User, Response> {
   return ResultAsync.fromPromise(
     findUserById(body.userId),
     () => InternalServerError({ body: { error: 'Database error retrieving user.' } })
@@ -56,7 +66,7 @@ function getUserDetails(body: any): ResultAsync<User, Response> {
   );
 }
 
-function checkInventory(items: any[]): ResultAsync<any[], Response> {
+function checkInventory(items: OrderItem[]): ResultAsync<OrderItem[], Response> {
   return ResultAsync.combine(
     items.map(item =>
       ResultAsync.fromPromise(
@@ -75,8 +85,8 @@ function checkInventory(items: any[]): ResultAsync<any[], Response> {
   );
 }
 
-function calculateTotalOrderAmount(orderItems: any[]): ResultAsync<number, Response> {
-  let priceResults = orderItems.map(item =>
+function calculateTotalOrderAmount(items: OrderItem[]): ResultAsync<number, Response> {
+  let priceResults = items.map(item =>
     ResultAsync.fromPromise(
       findProductById(item.productId),
       () => InternalServerError({ body: { error: 'Error calculating order total.' } })
@@ -92,7 +102,7 @@ function calculateTotalOrderAmount(orderItems: any[]): ResultAsync<number, Respo
       (orderTotal, price) => orderTotal + price, 0));
 }
 
-function processPaymentViaGateway(orderTotal: number, user: User, body: any): ResultAsync<PaymentId, Response> {
+function processPaymentViaGateway(orderTotal: number, user: User, body: OrderRequestBody): ResultAsync<PaymentId, Response> {
   return ResultAsync.fromPromise(
     processPayment({
       userId: user.id,
@@ -104,10 +114,10 @@ function processPaymentViaGateway(orderTotal: number, user: User, body: any): Re
   ).andThen(paymentId => paymentId
     ? ok(paymentId)
     : err(PaymentRequired({ body: { error: 'Payment failed.' } }))
-  )
+  );
 }
 
-function createOrderRecord(user: User, orderItems: any[], orderTotal: number, paymentId: PaymentId): ResultAsync<{ id: string }, Response> {
+function createOrderRecord(user: User, orderItems: OrderItem[], orderTotal: number, paymentId: PaymentId): ResultAsync<OrderRecord, Response> {
   return ResultAsync.fromPromise(
     createOrder({
       userId: user.id,
@@ -120,7 +130,7 @@ function createOrderRecord(user: User, orderItems: any[], orderTotal: number, pa
   );
 }
 
-function sendEmail(user: User, orderRecord: { id: string }, orderTotal: number): ResultAsync<void, void> {
+function sendEmail(user: User, orderRecord: OrderRecord, orderTotal: number): ResultAsync<void, void> {
   return ResultAsync.fromPromise(
     sendOrderNotification({
       userId: user.id,
