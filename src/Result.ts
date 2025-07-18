@@ -26,4 +26,12 @@ export class Result<V, E> {
       return Result.err(this.error as E)
     }
   }
+
+    andThen<R, E2>(f: (value: V) => Result<R, E2>): Result<R, E | E2> {
+    if (this.isOk) {
+      return f(this.value as V)
+    } else {
+      return Result.err(this.error as E)
+    }
+  }
 }

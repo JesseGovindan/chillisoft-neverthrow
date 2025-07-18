@@ -1,120 +1,91 @@
-import { RequestHandler } from "../common/RequestHandler";
 import { BadRequest, Ok } from "../common/Response";
-import { fetchWeatherCondition, WeatherApiError, WeatherCondition } from "../common/WeatherApi";
+import { fetchWeatherCondition, WeatherCondition, WeatherApiError } from "../common/WeatherApi";
+import { Result } from "../Result";
+import { AuthenticatedRequestHandler } from "../common/RequestHandler";
 
-// In this exercise we don't have any Result usage to start with.
-// Use what you've learnt in other exercises and your understanding of andThen to refactor this code.
-// Remember to use the tests to check if you did not break the solution
-//
-// Hint. If you find you require variables used in one operation further down the chain,
-// that might mean you are missing an abstraction or a function
-export const getWeatherSummary: RequestHandler = (request) => {
-  try {
-    const {city, date} = validateRequest(request.query)
-
-    const weatherRequest = createWeatherRequest(city, date)
-
-    try {
-      const weather = fetchWeatherCondition(weatherRequest)
-      return Ok({
-        body: {
-          summary: formatSummary(weather, date, city)
-        }
-      })
-    } catch (error) {
-      return createErrorResponse(error as WeatherApiError, city)
-    }
-  } catch (error) {
-    return BadRequest({
-      body: {
-        error,
-      }
-    })
-  }
+type RequestQuery = {
+  city?: string;
+  time?: string;
 }
 
-function validateRequest(body: any) {
-  const { city, time: timeString } = body
+export const getWeatherSummary: AuthenticatedRequestHandler = (request) => {
+  return validateRequest(request.query)
+    .andThen(parsedRequest => getWeatherConditionResult(parsedRequest.city, parsedRequest.time))
+    .map(weatherCondition => createWeatherSummary(weatherCondition, request.query?.city, request.query?.time))
+    .match(
+      (summary) => Ok({ body: { summary } }),
+      createErrorResponse
+    );
+};
+
+function validateRequest(query?: RequestQuery): Result<{ city: string, time: Date }, string> {
+  if (!query) {
+    return Result.err("Request query is missing.");
+  }
+
+  const { city, time } = query;
+
   if (!city) {
-    throw "Request body did not contain a 'city' field"
+    return Result.err("Request body did not contain a 'city' field");
   }
 
-  if (!timeString) {
-    throw "Request body did not contain a 'time' field"
+  if (!time) {
+    return Result.err("Request body did not contain a 'time' field");
   }
 
-  if (typeof city !== 'string') {
-    throw "Request body did not contain a valid 'city' field"
+  const parsedTime = Number(time);
+  if (isNaN(parsedTime)) {
+    return Result.err("Request body did not contain a valid 'time' field");
   }
 
-  const time = parseInt(timeString)
-  if (isNaN(time)) {
-    throw "Request body did not contain a valid 'time' field"
-  }
+  return Result.ok({ city, time: new Date(parsedTime) });
+}
 
-  return {
-    city,
-    date: new Date(time),
+function getWeatherConditionResult(city: string, time: Date): Result<WeatherCondition, string> {
+  try {
+    const formattedDate = `${time.getUTCDate().toString().padStart(2, '0')}/${(time.getUTCMonth() + 1).toString().padStart(2, '0')}/${time.getUTCFullYear()}`;
+    const formattedString = `${city} @ ${formattedDate}`;
+    const condition = fetchWeatherCondition(formattedString);
+    return Result.ok(condition);
+  } catch (error: any) {
+    return Result.err(mapWeatherApiError(error, city));
   }
 }
 
-function createWeatherRequest(city: string, date: Date) {
-  const d = date.getUTCDate().toString().padStart(2, '0')
-  const m = (date.getUTCMonth() + 1).toString().padStart(2, '0')
-  const y = date.getUTCFullYear()
-  return `${city} @ ${d}/${m}/${y}`
-}
-
-function formatSummary(weather: WeatherCondition, date: Date, city: string) {
-  const temperatureSymbol = weather.temperatureScale.at(0)?.toUpperCase()
-  const dateString = formatDateString(date)
-  return `It will be ${weather.condition} (${weather.temperature} ${temperatureSymbol}) in ${city} on the ${dateString}`
-}
-
-function formatDateString(date: Date) {
-  return `${dateToString(date.getUTCDate())} of ${MONTHS[date.getUTCMonth()]}`
-}
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-
-function dateToString(date: number) {
-  return `${date}${getDateSuffix(date)}`
-}
-
-function getDateSuffix(date: number) {
-  switch (date % 10) {
-    case 1: return 'st'
-    case 2: return 'nd'
-    case 3: return 'rd'
-    default: return 'th'
+function mapWeatherApiError(error: WeatherApiError | string, city: string): string {
+  switch (error) {
+    case 'invalidLocation':
+      return `Invalid city name provided ('${city}').`;
+    case 'tooManyRequests':
+    case 'networkError':
+      return "Could not handle request at the moment. Please try again later.";
+    default:
+      return "An unknown error occurred.";
   }
 }
 
-function createErrorResponse(error: WeatherApiError, city: string) {
-  if (error === 'invalidLocation') {
-    return BadRequest({
-      body: {
-        error: `Invalid city name provided ('${city}').`,
-      }
-    })
-  }
+function createWeatherSummary(weatherCondition: WeatherCondition, city?: string, time?: string): string {
+  const date = new Date(Number(time));
+  const day = date.getUTCDate();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+  const month = monthNames[date.getUTCMonth()];
 
-  return BadRequest({
-    body: {
-      error: 'Could not handle request at the moment. Please try again later.',
-    }
-  })
+  const temperatureScaleDisplay = weatherCondition.temperatureScale === 'celsius' ? 'C' : 'F';
+  const temperatureDisplay = weatherCondition.temperature;
+
+  return `It will be ${weatherCondition.condition} (${temperatureDisplay} ${temperatureScaleDisplay}) in ${city} on the ${day}${getOrdinalSuffix(day)} of ${month}`;
+}
+
+function getOrdinalSuffix(day: number): string {
+  if (day > 3 && day < 21) return 'th';
+  switch (day % 10) {
+    case 1: return 'st';
+    case 2: return 'nd';
+    case 3: return 'rd';
+    default: return 'th';
+  }
+}
+
+function createErrorResponse(errorMessage: string) {
+  return BadRequest({ body: { error: errorMessage } });
 }
